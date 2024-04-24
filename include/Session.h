@@ -8,12 +8,22 @@
 #include "Server.h"
 #include "boost/asio/io_context.hpp"
 #include <boost/asio.hpp>
+#include <cstdint>
 #include <memory>
+#include <mutex>
+#include <queue>
 #include <string>
 
+static constexpr int MAX_LENGTH = 1024 * 2;
+static constexpr int HEAD_LENGTH = 2;
+
 namespace ICEY {
+
 class Server;
+class MsgNode;
+
 namespace Bsio = boost::asio;
+
 class Session : public std::enable_shared_from_this<Session> {
 
 public:
@@ -41,10 +51,22 @@ public:
    */
   void start();
   /**
+   * @brief 发送数据
+   * @param[in] msg 要发送的数据
+   * @param[in] max_length 要发送的数据的最大长度
+   */
+  void send(char *msg, int max_length);
+  /**
    * @brief 获取当前Session的uid
    * @return 返回uid
    */
   std::string getUid() const { return m_uid; }
+  /**
+   * @brief 打印接收到的二进制数据
+   * @param[in] data 接收到的数据
+   * @param[in] length 接收到的数据的长度
+   */
+  void printRecvData(char *data, int length);
 
 private:
   /**
@@ -68,24 +90,57 @@ private:
   // 设置数据最大长度
   enum { max_length = 1024 };
   // 设置buffer
-  char m_data[max_length];
+  char m_data[MAX_LENGTH];
   // Server类对象指针
   Server *m_server;
   // uid
   std::string m_uid;
+  // 发送队列
+  std::queue<std::shared_ptr<MsgNode>> m_send_que;
+  // 维持有序性的锁
+  std::mutex m_send_lock;
+  // 收到的消息结构
+  std::shared_ptr<MsgNode> m_recv_msg_node;
+  // 头部是否解析完成
+  bool m_b_head_parse{false};
+  // 收到的头部结构
+  std::shared_ptr<MsgNode> m_recv_head_node;
 };
 class MsgNode {
   friend class Session;
 
 public:
-  MsgNode(char *msg, int max_len);
+  using Ptr = std::shared_ptr<MsgNode>;
+
+  /**
+   * @brief 构造函数（发送）
+   * @param[in] msg 要发送的数据
+   * @param[in] max_len 要发送的数据的长度
+   */
+  MsgNode(char *msg, int16_t max_len);
+  /**
+   * @brief 构造函数（接收）
+   * @param [in] max_len 要发送的数据的长度
+   */
+  explicit MsgNode(int16_t max_len);
+  /**
+   * @brief 析构函数
+   */
   ~MsgNode();
+
+  /**
+   * @brief 清除m_data中的数据
+   */
+  void clear() {
+    ::memset(m_data, 0, m_total_len);
+    m_cur_len = 0;
+  }
 
 private:
   // 当前已处理的数据的长度
   int m_cur_len;
   // 数据的总长度
-  int m_max_len;
+  int m_total_len;
   // 数据域，已接受或者已发送的数据都放在此空间内
   char *m_data;
 };
