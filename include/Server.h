@@ -8,6 +8,7 @@
 #include "Session.h"
 #include "boost/asio/io_context.hpp"
 #include <boost/asio.hpp>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
@@ -25,7 +26,7 @@ public:
    * @param[in] port 端口
    */
   Server(boost::asio::io_context &ioc, short port);
-
+  ~Server() { std::cout << "~Server free .\n"; }
   /**
    * @brief 删除当前uid所对应的Session
    * @param[in] uid 需要删除的Session的uid
