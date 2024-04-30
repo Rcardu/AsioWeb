@@ -11,14 +11,18 @@ target_include_directories(client1 PRIVATE ${HPATH})
 target_link_directories(client1 PRIVATE ${LPATH})
 target_link_libraries(client1 PRIVATE ${BSIOLIB})
 target_compile_definitions(client1 PRIVATE # PROTO_SEND_S
-                                           JSON_SEND_S)
+                                           JSON_SEND_S
+                                           #THREAD_SEND_S
+                                           )
 
 add_executable(bytearray bytearray_t.cc)
 target_include_directories(bytearray PRIVATE ${HPATH})
 target_link_directories(bytearray PRIVATE ${LPATH})
 target_link_libraries(bytearray PRIVATE ${BSIOLIB})
 target_compile_definitions(bytearray PRIVATE # PROTO_SEND_S
-                                             JSON_SEND_S)
+                                             JSON_SEND_S
+                                            # THREAD_SEND_S
+                                            )
 
 if(protobuf_MSVC_STATIC_RUNTIME)
   foreach(flag_var

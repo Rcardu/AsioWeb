@@ -14,7 +14,7 @@
 #include <queue>
 #include <string>
 
-static constexpr int MAX_LENGTH = 1024 * 2;
+static constexpr int MAX_LENGTH = 1024 * 3;
 static constexpr int HEAD_LENGTH = 2;
 static constexpr int MAX_SENDQUE = 10;
 
@@ -52,6 +52,10 @@ public:
    */
   void start();
   /**
+   * @brief 关闭Socket
+   */
+  void close();
+  /**
    * @brief 发送数据
    * @param[in] msg 要发送的数据
    * @param[in] max_length 要发送的数据的最大长度
@@ -84,6 +88,10 @@ private:
    */
   void handle_read(const boost::system::error_code &error,
                    size_t bytes_transferend, Ptr self_ptr);
+  void handle_read_head(const boost::system::error_code &error,
+                        size_t bytes_transferend, Ptr self_ptr);
+  void handle_read_msg(const boost::system::error_code &error,
+                       size_t bytes_transferend, Ptr self_ptr);
   /**
    * @brief 写回调
    * @param[in] error boost::asio错误码
@@ -112,6 +120,8 @@ private:
   bool m_b_head_parse{false};
   // 收到的头部结构
   std::shared_ptr<MsgNode> m_recv_head_node;
+  // socket是否已被关闭
+  bool m_b_close{false};
 };
 class MsgNode {
   friend class Session;

@@ -17,8 +17,14 @@ target_link_directories(${BSIOLIB} PUBLIC ${Boost_LIBRARY_DIRS}
                         ${jsoncpp_LIBRARY_DIR})
 target_link_libraries(${BSIOLIB} PUBLIC ${Boost_LIBRARIES}
                                         protobuf::libprotobuf jsoncpp)
-target_compile_definitions(${BSIOLIB} PUBLIC # THREAD_SEND_S PROTO_SEND_S
-                                             JSON_SEND_S)
+target_compile_definitions(
+  ${BSIOLIB} PUBLIC 
+  #THREAD_SEND_S 
+  #PROTO_SEND_S
+  JSON_SEND_S
+  #READ_HEAD_MSG
+  READ_ALL_MSG 
+  )
 protobuf_generate(TARGET ${BSIOLIB})
 
 # add_executable(SRC1 msg.pb.cc)

@@ -34,7 +34,7 @@ int main() {
            << error.message();
       return 0;
     }
-// STAR:客户端使用宏
+// STAR:客户端宏JSON_SEND_S
 #ifdef JSON_SEND_S
     Json::Value root;
     root["id"] = 1001;
@@ -66,6 +66,7 @@ int main() {
               << std::endl;
     getchar();
 #endif // JSON_SEND_S
+// STAR:客户端宏PTOTO_SEND_S
 #ifdef PROTO_SEND_S
     MsgData msgdata;
     msgdata.set_id(1001);
@@ -97,12 +98,16 @@ int main() {
               << std::endl;
     getchar();
 #endif // PROTO_SEND_S
+// STAR:客户端宏THREAD_SEND_S
 #ifdef THREAD_SEND_S
     thread send_thread([&sock] {
       for (;;) {
         this_thread::sleep_for(std::chrono::milliseconds(2));
         const char *request = "hello word!";
         size_t request_length = strlen(request);
+        // uint16_t request_host_length =
+        //     boost::asio::detail::socket_ops::host_to_network_short(
+        //         request_length);
         char send_data[MAX_LENGTH] = {0};
         memcpy(send_data, &request_length, 2);
         memcpy(send_data + 2, request, request_length);
@@ -114,11 +119,13 @@ int main() {
       for (;;) {
         this_thread::sleep_for(std::chrono::milliseconds(2));
         std::cout << "begin to recive..." << std::endl;
-        char reply_head[MAX_LENGTH];
+        char reply_head[HEAD_LENGTH];
         size_t reply_length = boost::asio::read(
             sock, boost::asio::buffer(reply_head, HEAD_LENGTH));
-        int16_t msglen = 0;
+        uint16_t msglen = 0;
         memcpy(&msglen, reply_head, HEAD_LENGTH);
+        // msglen =
+        // boost::asio::detail::socket_ops::network_to_host_short(msglen);
         char msg[MAX_LENGTH] = {0};
         size_t mag_length =
             boost::asio::read(sock, boost::asio::buffer(msg, msglen));

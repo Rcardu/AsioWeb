@@ -101,5 +101,6 @@ _deps
 
 *.ninja
 .cmake
+.cache
 
 

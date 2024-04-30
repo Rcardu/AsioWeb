@@ -23,7 +23,6 @@ set(EPATH ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 set(Boost_ROOT "D:/software/VsCode/Boost")
 # 查找Boost库文件
 find_package(Boost 1.84.0 REQUIRED)
-# include_directories(${Boost_INCLUDE_DIRS})
 
 set(CMAKE_PREFIX_PATH "D:/software/VsCode/Cppsoft/protobuf/stage")
 find_package(protobuf CONFIG REQUIRED)

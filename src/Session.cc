@@ -31,13 +31,31 @@ Session::Session(Bsio::io_context &ioc, Server *server)
 
 Session::~Session() { std::cout << "~Session to free\n"; }
 void Session::start() {
+  // STAR:服务器宏READ_ALL_MSG
+#ifdef READ_ALL_MSG
   memset(m_data, 0, max_length);
   m_sock.async_read_some(
       Bsio::buffer(m_data, max_length), [this](auto &&PH1, auto &&PH2) {
         handle_read(std::forward<decltype(PH1)>(PH1),
                     std::forward<decltype(PH2)>(PH2), shared_from_this());
       });
+#endif // READ_ALL_MSG
+  // STAR:服务器宏READ_HEAD_MSG
+#ifdef READ_HEAD_MSG
+  m_recv_head_node->clear();
+  boost::asio::async_read(
+      m_sock, boost::asio::buffer(m_recv_head_node->m_data, HEAD_LENGTH),
+      [this](auto &&PH1, auto &&PH2) {
+        handle_read_head(std::forward<decltype(PH1)>(PH1),
+                         std::forward<decltype(PH2)>(PH2), shared_from_this());
+      });
+#endif // READ_HEAD_MSG
 }
+void Session::close() {
+  m_sock.close();
+  m_b_close = true;
+}
+
 void Session::send(const char *msg, int max_length) {
 
   std::lock_guard<std::mutex> lock(m_send_lock);
@@ -165,12 +183,13 @@ void Session::handle_read(const boost::system::error_code &error,
       copy_len += data_len;
       bytes_transferend -= data_len;
       m_recv_msg_node->m_data[m_recv_msg_node->m_total_len] = '\0';
-// STAR:服务器发送宏
+// STAR:服务器宏THREAD_SEND_S
 #ifdef THREAD_SEND_S
       std::cout << "receive data is " << m_recv_msg_node->m_data << std::endl;
       // 此处可以调用Send发送测试
       send(m_recv_msg_node->m_data, m_recv_msg_node->m_total_len);
-#endif
+#endif // THREAD_SEND_S
+// STAR:服务器宏PROTO_SEND_S
 #ifdef PROTO_SEND_S
       MsgData msg_data;
       std::string receive_data;
@@ -186,6 +205,7 @@ void Session::handle_read(const boost::system::error_code &error,
       msg_return.SerializeToString(&return_str);
       send(return_str);
 #endif // PROTO_SEND_S
+// STAR:服务器宏JSON_SEND_S
 #ifdef JSON_SEND_S
       Json::Reader reader;
       Json::Value root;
@@ -198,8 +218,8 @@ void Session::handle_read(const boost::system::error_code &error,
           "server has received msg, msg data is " + root["data"].asString();
       std::string return_str = root.toStyledString();
       send(return_str);
-#endif
-      // 继续轮询剩余未处理数据
+#endif // JSON_SEND_S
+       // 继续轮询剩余未处理数据
       m_b_head_parse = false;
       m_recv_head_node->clear();
       if (bytes_transferend <= 0) {
@@ -236,10 +256,12 @@ void Session::handle_read(const boost::system::error_code &error,
     bytes_transferend -= remain_msg;
     copy_len += remain_msg;
     m_recv_msg_node->m_data[m_recv_msg_node->m_total_len] = '\0';
+// STAR:服务器宏THREAD_SEND_S
 #ifdef THREAD_SEND_S
     std::cout << "receive data is " << m_recv_msg_node->m_data << std::endl;
     send(m_recv_msg_node->m_data, m_recv_msg_node->m_total_len);
-#endif
+#endif // THREAD_SEND_S
+// STAR:服务器宏PROTO_SEND_S
 #ifdef PROTO_SEND_S
     MsgData msg_data;
     std::string receive_data;
@@ -256,6 +278,7 @@ void Session::handle_read(const boost::system::error_code &error,
     // 此处调用send测试
     send(return_str);
 #endif // PROTO_SEND_S
+// STAR:服务器宏JSON_SEND_S
 #ifdef JSON_SEND_S
     Json::Reader reader;
     Json::Value root;
@@ -284,6 +307,73 @@ void Session::handle_read(const boost::system::error_code &error,
     }
   }
 }
+
+void Session::handle_read_head(const boost::system::error_code &error,
+                               size_t bytes_transferend, Ptr self_ptr) {
+  if (error) {
+    std::cout << "handle read head failed, error is " << error.what()
+              << std::endl
+              << "error code: " << error.value() << std::endl;
+    close();
+    m_server->delSession(self_ptr->m_uid);
+    return;
+  }
+  if (bytes_transferend < HEAD_LENGTH) {
+    std::cout << "read head length error";
+    close();
+    m_server->delSession(self_ptr->m_uid);
+    return;
+  }
+  // 头部已经收到，解析头部
+  uint16_t data_len = 0;
+  memcpy(&data_len, m_recv_head_node->m_data, HEAD_LENGTH);
+  // data_len =
+  // boost::asio::detail::socket_ops::network_to_host_short(data_len);
+  std::cout << "data len is " << data_len << std::endl;
+  // 数据太多，不合规
+  if (data_len > MAX_LENGTH) {
+    std::cout << "invalid data length is " << data_len << std::endl;
+    m_server->delSession(self_ptr->m_uid);
+    return;
+  }
+
+  m_recv_msg_node = std::make_shared<MsgNode>(data_len);
+  boost::asio::async_read(m_sock,
+                          boost::asio::buffer(m_recv_msg_node->m_data,
+                                              m_recv_msg_node->m_total_len),
+                          [this](auto &&PH1, auto &&PH2) {
+                            handle_read_msg(std::forward<decltype(PH1)>(PH1),
+                                            std::forward<decltype(PH2)>(PH2),
+                                            shared_from_this());
+                          });
+}
+void Session::handle_read_msg(const boost::system::error_code &error,
+                              size_t bytes_transferend, Ptr self_ptr) {
+  if (error) {
+    std::cout << "handle read msg failed, error is " << error.what()
+              << std::endl
+              << "error code: " << error.value() << std::endl;
+    std::cout << "receive message is:" << std::endl;
+    close();
+    m_server->delSession(self_ptr->m_uid);
+    return;
+  }
+  PrintRecvData(m_data, bytes_transferend);
+  std::chrono::milliseconds dura(2000);
+  std::this_thread::sleep_for(dura);
+  m_recv_msg_node->m_data[m_recv_msg_node->m_total_len] = '\0';
+  std::cout << "receive data is " << m_recv_msg_node->m_data << std::endl;
+  send(m_recv_msg_node->m_data, m_recv_msg_node->m_total_len);
+  // 再次接收头部数据
+  m_recv_head_node->clear();
+  boost::asio::async_read(
+      m_sock, boost::asio::buffer(m_recv_head_node->m_data, HEAD_LENGTH),
+      [this](auto &&PH1, auto &&PH2) {
+        handle_read_head(std::forward<decltype(PH1)>(PH1),
+                         std::forward<decltype(PH2)>(PH2), shared_from_this());
+      });
+}
+
 void Session::handle_write(const boost::system::error_code &error,
                            Ptr self_ptr) {
   if (error) {
@@ -300,9 +390,8 @@ void Session::handle_write(const boost::system::error_code &error,
       auto &msgnode = m_send_que.front();
       boost::asio::async_write(
           m_sock, boost::asio::buffer(msgnode->m_data, msgnode->m_total_len),
-          [this, msgnode](const boost::system::error_code &error,
-                          std::size_t bytes_transferred) {
-            handle_write(error, shared_from_this());
+          [this, msgnode](auto &&PH1, auto &&) {
+            handle_write(std::forward<decltype(PH1)>(PH1), shared_from_this());
           });
     }
   }
