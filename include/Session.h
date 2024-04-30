@@ -2,7 +2,7 @@
  * @Author: Ricardo
  * @Date: 2024-04-23 18:03:04
  * @Last Modified by: ICEY
- * @Last Modified time: 2024-04-24 13:11:38
+ * @Last Modified time: 2024-04-25 12:38:48
  */
 #pragma once
 #include "Server.h"
@@ -16,6 +16,7 @@
 
 static constexpr int MAX_LENGTH = 1024 * 2;
 static constexpr int HEAD_LENGTH = 2;
+static constexpr int MAX_SENDQUE = 10;
 
 namespace ICEY {
 
@@ -55,18 +56,24 @@ public:
    * @param[in] msg 要发送的数据
    * @param[in] max_length 要发送的数据的最大长度
    */
-  void send(char *msg, int max_length);
+  void send(const char *msg, int max_length);
+  /**
+   * @brief 发送数据
+   * @param[in] msg 要发送的数据
+   */
+  void send(const std::string &msg);
   /**
    * @brief 获取当前Session的uid
    * @return 返回uid
    */
   std::string getUid() const { return m_uid; }
+
   /**
    * @brief 打印接收到的二进制数据
    * @param[in] data 接收到的数据
    * @param[in] length 接收到的数据的长度
    */
-  void printRecvData(char *data, int length);
+  static void PrintRecvData(char *data, int length);
 
 private:
   /**
@@ -117,7 +124,7 @@ public:
    * @param[in] msg 要发送的数据
    * @param[in] max_len 要发送的数据的长度
    */
-  MsgNode(char *msg, int16_t max_len);
+  MsgNode(const char *msg, int16_t max_len);
   /**
    * @brief 构造函数（接收）
    * @param [in] max_len 要发送的数据的长度
