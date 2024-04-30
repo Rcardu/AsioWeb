@@ -2,21 +2,19 @@
  * @Author: Ricardo
  * @Date: 2024-04-23 18:03:04
  * @Last Modified by: ICEY
- * @Last Modified time: 2024-04-25 12:38:48
+ * @Last Modified time: 2024-04-30 16:06:31
  */
 #pragma once
+#include "MsgNode.h"
 #include "Server.h"
 #include "boost/asio/io_context.hpp"
+#include "deconst.h"
 #include <boost/asio.hpp>
 #include <cstdint>
 #include <memory>
 #include <mutex>
 #include <queue>
 #include <string>
-
-static constexpr int MAX_LENGTH = 1024 * 3;
-static constexpr int HEAD_LENGTH = 2;
-static constexpr int MAX_SENDQUE = 10;
 
 namespace ICEY {
 
@@ -60,12 +58,12 @@ public:
    * @param[in] msg 要发送的数据
    * @param[in] max_length 要发送的数据的最大长度
    */
-  void send(const char *msg, int max_length);
+  void send(const char *msg, int max_length, int16_t msgid);
   /**
    * @brief 发送数据
    * @param[in] msg 要发送的数据
    */
-  void send(const std::string &msg);
+  void send(const std::string &msg, int16_t msgid);
   /**
    * @brief 获取当前Session的uid
    * @return 返回uid
@@ -111,11 +109,11 @@ private:
   // uid
   std::string m_uid;
   // 发送队列
-  std::queue<std::shared_ptr<MsgNode>> m_send_que;
+  std::queue<std::shared_ptr<SendNode>> m_send_que;
   // 维持有序性的锁
   std::mutex m_send_lock;
   // 收到的消息结构
-  std::shared_ptr<MsgNode> m_recv_msg_node;
+  std::shared_ptr<RecvNode> m_recv_msg_node;
   // 头部是否解析完成
   bool m_b_head_parse{false};
   // 收到的头部结构
@@ -123,6 +121,9 @@ private:
   // socket是否已被关闭
   bool m_b_close{false};
 };
+
+// STAR:消息节点宏MSG_PROV_S
+#ifdef MSG_PROV_S
 class MsgNode {
   friend class Session;
 
@@ -161,4 +162,5 @@ private:
   // 数据域，已接受或者已发送的数据都放在此空间内
   char *m_data;
 };
+#endif // MSG_PROV_S
 } // namespace ICEY

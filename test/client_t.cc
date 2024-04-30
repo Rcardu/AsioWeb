@@ -11,6 +11,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/io_context.hpp>
 #include <chrono>
+#include <cstring>
 #include <exception>
 #include <iostream>
 #include <json/json.h>
@@ -42,20 +43,28 @@ int main() {
     std::string request = root.toStyledString();
     size_t request_length = request.length();
     char send_data[MAX_LENGTH] = {0};
+    int16_t msgid = 1001;
+    int msgid_host =
+        boost::asio::detail::socket_ops::host_to_network_short(msgid);
+    memcpy(send_data, &msgid_host, HEAD_ID_LEN);
+    ;
     // 转为网络字节序
     int request_host_length =
         boost::asio::detail::socket_ops::host_to_network_short(request_length);
-    memcpy(send_data, &request_host_length, HEAD_LENGTH);
-    memcpy(send_data + HEAD_LENGTH, request.c_str(), request_length);
+    memcpy(send_data + HEAD_ID_LEN, &request_host_length, HEAD_DATA_LEN);
+    memcpy(send_data + HEAD_TOTAL_LEN, request.c_str(), request_length);
     boost::asio::write(
-        sock, boost::asio::buffer(send_data, request_length + HEAD_LENGTH));
+        sock, boost::asio::buffer(send_data, request_length + HEAD_TOTAL_LEN));
     std::cout << "begin to receive..." << std::endl;
-    char reply_head[HEAD_LENGTH];
-    size_t reply_length =
-        boost::asio::read(sock, boost::asio::buffer(reply_head, HEAD_LENGTH));
+    char reply_head[HEAD_TOTAL_LEN];
+    size_t reply_length = boost::asio::read(
+        sock, boost::asio::buffer(reply_head, HEAD_TOTAL_LEN));
+    msgid = 0;
+    memcpy(&msgid, reply_head, HEAD_ID_LEN);
     int16_t msglen = 0;
-    memcpy(&msglen, reply_head, HEAD_LENGTH);
+    memcpy(&msglen, reply_head + HEAD_ID_LEN, HEAD_DATA_LEN);
     // 转为本地字节序
+    msgid = boost::asio::detail::socket_ops::network_to_host_short(msgid);
     msglen = boost::asio::detail::socket_ops::network_to_host_short(msglen);
     char msg[MAX_LENGTH] = {0};
     size_t msg_length =
