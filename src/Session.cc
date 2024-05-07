@@ -2,9 +2,10 @@
  * @Author: Ricardo
  * @Date: 2024-04-23 18:03:01
  * @Last Modified by: ICEY
- * @Last Modified time: 2024-04-30 16:05:21
+ * @Last Modified time: 2024-05-07 15:59:51
  */
 #include "Session.h"
+#include "LogicSystem.h"
 #include "MsgNode.h"
 #include "boost/asio/detail/socket_holder.hpp"
 #include "boost/asio/write.hpp"
@@ -197,6 +198,8 @@ void Session::handle_read(const boost::system::error_code &error,
       copy_len += msg_len;
       bytes_transferend -= msg_len;
       m_recv_msg_node->getData()[m_recv_msg_node->getTotallen()] = '\0';
+      LogicSystem::GetInstance()->postMsgToQueue(
+          std::make_shared<LogicNode>(shared_from_this(), m_recv_msg_node));
 // STAR:服务器宏THREAD_SEND_S
 #ifdef THREAD_SEND_S
       std::cout << "receive data is " << m_recv_msg_node->getData()
@@ -272,6 +275,8 @@ void Session::handle_read(const boost::system::error_code &error,
     bytes_transferend -= remain_msg;
     copy_len += remain_msg;
     m_recv_msg_node->getData()[m_recv_msg_node->getTotallen()] = '\0';
+    LogicSystem::GetInstance()->postMsgToQueue(
+        std::make_shared<LogicNode>(shared_from_this(), m_recv_msg_node));
 // STAR:服务器宏THREAD_SEND_S
 #ifdef THREAD_SEND_S
     std::cout << "receive data is " << m_recv_msg_node->getData() << std::endl;
@@ -413,6 +418,9 @@ void Session::handle_write(const boost::system::error_code &error,
     }
   }
 }
+LogicNode::LogicNode(std::shared_ptr<Session> session,
+                     std::shared_ptr<RecvNode> recvnode)
+    : m_session(session), m_recvnode(recvnode) {}
 // STAR:消息节点宏MSG_PROV_S
 #ifdef MSG_PROV_S
 MsgNode::MsgNode(const char *msg, int16_t max_len)
