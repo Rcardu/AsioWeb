@@ -2,8 +2,10 @@
  * @Author: Ricardo
  * @Date: 2024-04-23 18:03:04
  * @Last Modified by: ICEY
- * @Last Modified time: 2024-04-30 16:06:31
+ * @Last Modified time: 2024-05-07 16:03:26
+ * @Title: 会话类
  */
+
 #pragma once
 #include "MsgNode.h"
 #include "Server.h"
@@ -20,6 +22,8 @@ namespace ICEY {
 
 class Server;
 class MsgNode;
+class SendNode;
+class RecvNode;
 
 namespace Bsio = boost::asio;
 
@@ -121,6 +125,16 @@ private:
   // socket是否已被关闭
   bool m_b_close{false};
 };
+class LogicNode {
+  friend class LogicSystem;
+
+public:
+  LogicNode(std::shared_ptr<Session>, std::shared_ptr<RecvNode>);
+
+private:
+  std::shared_ptr<Session> m_session;
+  std::shared_ptr<RecvNode> m_recvnode;
+};
 
 // STAR:消息节点宏MSG_PROV_S
 #ifdef MSG_PROV_S
@@ -163,4 +177,5 @@ private:
   char *m_data;
 };
 #endif // MSG_PROV_S
+
 } // namespace ICEY
