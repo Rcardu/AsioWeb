@@ -27,7 +27,7 @@ public:
    * @param[in] port 端口
    */
   Server(boost::asio::io_context &ioc, short port);
-  ~Server() { std::cout << "~Server free .\n"; }
+  ~Server() { std::cout << "~Server to free \n"; }
   /**
    * @brief 删除当前uid所对应的Session
    * @param[in] uid 需要删除的Session的uid

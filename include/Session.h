@@ -129,10 +129,18 @@ class LogicNode {
   friend class LogicSystem;
 
 public:
-  LogicNode(std::shared_ptr<Session>, std::shared_ptr<RecvNode>);
+  /**
+   * @brief 构造函数
+   * @param[in] session 连接的信息
+   * @param[in] recvnode 消息发送信息
+   */
+  LogicNode(std::shared_ptr<Session> sessin,
+            std::shared_ptr<RecvNode> recvnode);
 
 private:
+  // 含有连接信息的会话指针对象
   std::shared_ptr<Session> m_session;
+  // 含有要发送的已初始化好的消息节点指针对象
   std::shared_ptr<RecvNode> m_recvnode;
 };
 
