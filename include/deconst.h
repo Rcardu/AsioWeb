@@ -2,7 +2,8 @@
  * @Author: Ricardo
  * @Date: 2024-04-30 15:42:28
  * @Last Modified by: ICEY
- * @Last Modified time: 2024-04-30 15:45:17
+ * @Last Modified time: 2024-05-07 14:53:06
+ * @Title: 数字宏
  */
 #pragma once
 #define MAX_LENGTH 1024 * 2
@@ -15,3 +16,6 @@
 #define HEAD_ID_LEN 2
 // 消息大小的长度
 #define HEAD_DATA_LEN 2
+
+// 消息id
+enum MSG_IDS { MSG_HELLO_WORD = 1001 };
