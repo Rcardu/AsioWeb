@@ -21,7 +21,7 @@ target_compile_definitions(
   ${BSIOLIB} PUBLIC 
   #THREAD_SEND_S 
   #PROTO_SEND_S
-  JSON_SEND_S
+  #JSON_SEND_S
   #READ_HEAD_MSG
   READ_ALL_MSG 
   )
