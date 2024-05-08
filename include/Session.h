@@ -2,7 +2,7 @@
  * @Author: Ricardo
  * @Date: 2024-04-23 18:03:04
  * @Last Modified by: ICEY
- * @Last Modified time: 2024-05-07 16:03:26
+ * @Last Modified time: 2024-05-08 14:54:47
  * @Title: 会话类
  */
 
@@ -10,6 +10,7 @@
 #include "MsgNode.h"
 #include "Server.h"
 #include "boost/asio/io_context.hpp"
+#include "boost/asio/strand.hpp"
 #include "deconst.h"
 #include <boost/asio.hpp>
 #include <cstdint>
@@ -124,6 +125,8 @@ private:
   std::shared_ptr<MsgNode> m_recv_head_node;
   // socket是否已被关闭
   bool m_b_close{false};
+  //
+  boost::asio::strand<boost::asio::io_context::executor_type> m_strand;
 };
 class LogicNode {
   friend class LogicSystem;

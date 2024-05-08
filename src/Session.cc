@@ -2,11 +2,12 @@
  * @Author: Ricardo
  * @Date: 2024-04-23 18:03:01
  * @Last Modified by: ICEY
- * @Last Modified time: 2024-05-07 15:59:51
+ * @Last Modified time: 2024-05-08 17:16:33
  */
 #include "Session.h"
 #include "LogicSystem.h"
 #include "MsgNode.h"
+#include "boost/asio/bind_executor.hpp"
 #include "boost/asio/detail/socket_holder.hpp"
 #include "boost/asio/write.hpp"
 #include "boost/uuid/random_generator.hpp"
@@ -29,30 +30,56 @@ namespace ICEY {
 
 Session::Session(Bsio::io_context &ioc, Server *server)
     : m_sock(ioc), m_server(server),
-      m_recv_head_node(std::make_shared<MsgNode>(HEAD_TOTAL_LEN)) {
+      m_recv_head_node(std::make_shared<MsgNode>(HEAD_TOTAL_LEN)),
+      m_strand(ioc.get_executor()) {
   m_uid = boost::uuids::to_string(boost::uuids::random_generator()());
 }
 
 Session::~Session() { std::cout << "~Session to free\n"; }
 void Session::start() {
-  // STAR:服务器宏READ_ALL_MSG
+// STAR:服务器宏READ_ALL_MSG
 #ifdef READ_ALL_MSG
   memset(m_data, 0, MAX_LENGTH);
+// STAR:服务器宏，使用线程池USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+  m_sock.async_read_some(
+      Bsio::buffer(m_data, MAX_LENGTH),
+      boost::asio::bind_executor(m_strand, [this](auto &&PH1, auto &&PH2) {
+        handle_read(std::forward<decltype(PH1)>(PH1),
+                    std::forward<decltype(PH2)>(PH2), shared_from_this());
+      }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
   m_sock.async_read_some(
       Bsio::buffer(m_data, MAX_LENGTH), [this](auto &&PH1, auto &&PH2) {
         handle_read(std::forward<decltype(PH1)>(PH1),
                     std::forward<decltype(PH2)>(PH2), shared_from_this());
       });
+
+#endif // NOUSE_STRAND_LIST
 #endif // READ_ALL_MSG
   // STAR:服务器宏READ_HEAD_MSG
 #ifdef READ_HEAD_MSG
   m_recv_head_node->clear();
+// STAR:服务器宏，使用线程池USE_STRAND_LIST
+#ifdef USE_STRAND_LSIT
+  boost::asio::async_read(
+      m_sock, boost::asio::buffer(m_recv_head_node->getData(), HEAD_LENGTH),
+      boost::asio::bind_executor(m_strand, [this](auto &&PH1, auto &&PH2) {
+        handle_read_head(std::forward<decltype(PH1)>(PH1),
+                         std::forward<decltype(PH2)>(PH2), shared_from_this());
+      }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
   boost::asio::async_read(
       m_sock, boost::asio::buffer(m_recv_head_node->getData(), HEAD_LENGTH),
       [this](auto &&PH1, auto &&PH2) {
         handle_read_head(std::forward<decltype(PH1)>(PH1),
                          std::forward<decltype(PH2)>(PH2), shared_from_this());
       });
+#endif // NOUSE_STRAND_LIST
 #endif // READ_HEAD_MSG
 }
 void Session::close() {
@@ -76,11 +103,24 @@ void Session::send(const char *msg, int max_length, int16_t msgid) {
   }
 
   auto &msgnode = m_send_que.front();
+// STAR:服务器宏，使用线程池USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+  boost::asio::async_write(
+      m_sock, boost::asio::buffer(msgnode->getData(), msgnode->getTotallen()),
+      boost::asio::bind_executor(
+          m_strand, [this, msgnode](auto &&PH1, auto && /*PH2*/) {
+            handle_write(std::forward<decltype(PH1)>(PH1), shared_from_this());
+          }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
   boost::asio::async_write(
       m_sock, boost::asio::buffer(msgnode->getData(), msgnode->getTotallen()),
       [this, msgnode](auto &&PH1, auto && /*PH2*/) {
         handle_write(std::forward<decltype(PH1)>(PH1), shared_from_this());
       });
+
+#endif // NOUSE_STRAND_LIST
 }
 void Session::send(const std::string &msg, int16_t msgid) {
   std::lock_guard<std::mutex> lock(m_send_lock);
@@ -96,11 +136,24 @@ void Session::send(const std::string &msg, int16_t msgid) {
     return;
   }
   auto &msgnode = m_send_que.front();
+// STAR:服务器宏，使用线程池USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+  boost::asio::async_write(
+      m_sock, boost::asio::buffer(msgnode->getData(), msgnode->getTotallen()),
+      boost::asio::bind_executor(
+          m_strand, [this, msgnode](auto &&PH1, auto && /*PH2*/) {
+            handle_write(std::forward<decltype(PH1)>(PH1), shared_from_this());
+          }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
   boost::asio::async_write(
       m_sock, boost::asio::buffer(msgnode->getData(), msgnode->getTotallen()),
       [this, msgnode](auto &&PH1, auto && /*PH2*/) {
         handle_write(std::forward<decltype(PH1)>(PH1), shared_from_this());
       });
+
+#endif // NOUSE_STRAND_LIST
 }
 void Session::PrintRecvData(char *data, int length) {
   std::stringstream ss;
@@ -135,12 +188,26 @@ void Session::handle_read(const boost::system::error_code &error,
                m_data + copy_len, bytes_transferend);
         m_recv_head_node->addCurlen(bytes_transferend);
         ::memset(m_data, 0, MAX_LENGTH);
+// STAR:服务器宏，使用线程池，USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+        m_sock.async_read_some(
+            boost::asio::buffer(m_data, MAX_LENGTH),
+            boost::asio::bind_executor(
+                m_strand, [this, self_ptr](auto &&PH1, auto &&PH2) {
+                  handle_read(std::forward<decltype(PH1)>(PH1),
+                              std::forward<decltype(PH2)>(PH2), self_ptr);
+                }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池，NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
         m_sock.async_read_some(boost::asio::buffer(m_data, MAX_LENGTH),
                                [this, self_ptr](auto &&PH1, auto &&PH2) {
                                  handle_read(std::forward<decltype(PH1)>(PH1),
                                              std::forward<decltype(PH2)>(PH2),
                                              self_ptr);
                                });
+
+#endif // NOUSE_STRAND_LIST
         return;
       }
       // 收到的数据比头部多
@@ -183,12 +250,25 @@ void Session::handle_read(const boost::system::error_code &error,
                m_data + copy_len, bytes_transferend);
         m_recv_msg_node->addCurlen(bytes_transferend);
         ::memset(m_data, 0, MAX_LENGTH);
+// STAR:服务器宏，使用线程池，USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+        m_sock.async_read_some(
+            boost::asio::buffer(m_data, MAX_LENGTH),
+            boost::asio::bind_executor(
+                m_strand, [this, self_ptr](auto &&PH1, auto &&PH2) {
+                  handle_read(std::forward<decltype(PH1)>(PH1),
+                              std::forward<decltype(PH2)>(PH2), self_ptr);
+                }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池，NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
         m_sock.async_read_some(boost::asio::buffer(m_data, MAX_LENGTH),
                                [this, self_ptr](auto &&PH1, auto &&PH2) {
                                  handle_read(std::forward<decltype(PH1)>(PH1),
                                              std::forward<decltype(PH2)>(PH2),
                                              self_ptr);
                                });
+#endif // NOUSE_STRAND_LIST
         m_b_head_parse = true;
         return;
       }
@@ -242,12 +322,26 @@ void Session::handle_read(const boost::system::error_code &error,
       m_recv_head_node->clear();
       if (bytes_transferend <= 0) {
         ::memset(self_ptr->m_data, 0, MAX_LENGTH);
+// STAR:服务器宏，使用线程池，USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+        m_sock.async_read_some(
+            boost::asio::buffer(m_data, MAX_LENGTH),
+            boost::asio::bind_executor(
+                m_strand, [this, self_ptr](auto &&PH1, auto &&PH2) {
+                  handle_read(std::forward<decltype(PH1)>(PH1),
+                              std::forward<decltype(PH2)>(PH2), self_ptr);
+                }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池,NOUSE_STRAND_LSIT
+#ifdef NOUSE_STRAND_LIST
         m_sock.async_read_some(boost::asio::buffer(m_data, MAX_LENGTH),
                                [this, self_ptr](auto &&PH1, auto &&PH2) {
                                  handle_read(std::forward<decltype(PH1)>(PH1),
                                              std::forward<decltype(PH2)>(PH2),
                                              self_ptr);
                                });
+
+#endif // NOUSE_STRAND_LIST
         return;
       }
       continue;
@@ -261,12 +355,26 @@ void Session::handle_read(const boost::system::error_code &error,
              m_data + copy_len, bytes_transferend);
       m_recv_msg_node->addCurlen(bytes_transferend);
       ::memset(m_data, 0, MAX_LENGTH);
+// STAR:服务器宏，使用线程池，USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+      m_sock.async_read_some(
+          boost::asio::buffer(m_data, MAX_LENGTH),
+          boost::asio::bind_executor(
+              m_strand, [this, self_ptr](auto &&PH1, auto &&PH2) {
+                handle_read(std::forward<decltype(PH1)>(PH1),
+                            std::forward<decltype(PH2)>(PH2), self_ptr);
+              }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池，NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
       m_sock.async_read_some(boost::asio::buffer(m_data, MAX_LENGTH),
                              [this, self_ptr](auto &&PH1, auto &&PH2) {
                                handle_read(std::forward<decltype(PH1)>(PH1),
                                            std::forward<decltype(PH2)>(PH2),
                                            self_ptr);
                              });
+
+#endif // NOUSE_STRAND_LIST
       return;
     }
     memcpy(m_recv_msg_node->getData() + m_recv_msg_node->getCurlen(),
@@ -318,12 +426,26 @@ void Session::handle_read(const boost::system::error_code &error,
     m_recv_head_node->clear();
     if (bytes_transferend <= 0) {
       ::memset(m_data, 0, MAX_LENGTH);
+// STAR:服务器宏，使用线程池，USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+      m_sock.async_read_some(
+          boost::asio::buffer(m_data, MAX_LENGTH),
+          boost::asio::bind_executor(
+              m_strand, [this, self_ptr](auto &&PH1, auto &&PH2) {
+                handle_read(std::forward<decltype(PH1)>(PH1),
+                            std::forward<decltype(PH2)>(PH2), self_ptr);
+              }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池，NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
       m_sock.async_read_some(boost::asio::buffer(m_data, MAX_LENGTH),
                              [this, self_ptr](auto &&PH1, auto &&PH2) {
                                handle_read(std::forward<decltype(PH1)>(PH1),
                                            std::forward<decltype(PH2)>(PH2),
                                            self_ptr);
                              });
+
+#endif // NOUSE_STRAND_LIST
       return;
     }
   }
@@ -359,6 +481,19 @@ void Session::handle_read_head(const boost::system::error_code &error,
   }
 
   m_recv_msg_node = std::make_shared<RecvNode>(data_len, 1001);
+// STAR:服务器宏，使用线程池，USE_STRAND_LIST
+#ifdef USE_STRAND_LSIT
+  boost::asio::async_read(
+      m_sock,
+      boost::asio::buffer(m_recv_msg_node->getData(),
+                          m_recv_msg_node->getTotallen()),
+      boost::asio::bind_executor(m_strand, [this](auto &&PH1, auto &&PH2) {
+        handle_read_msg(std::forward<decltype(PH1)>(PH1),
+                        std::forward<decltype(PH2)>(PH2), shared_from_this());
+      }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池，NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
   boost::asio::async_read(m_sock,
                           boost::asio::buffer(m_recv_msg_node->getData(),
                                               m_recv_msg_node->getTotallen()),
@@ -367,6 +502,8 @@ void Session::handle_read_head(const boost::system::error_code &error,
                                             std::forward<decltype(PH2)>(PH2),
                                             shared_from_this());
                           });
+
+#endif // NOUSE_STRAND_LIST
 }
 void Session::handle_read_msg(const boost::system::error_code &error,
                               size_t bytes_transferend, Ptr self_ptr) {
@@ -387,12 +524,25 @@ void Session::handle_read_msg(const boost::system::error_code &error,
   send(m_recv_msg_node->getData(), m_recv_msg_node->getTotallen());
   // 再次接收头部数据
   m_recv_head_node->clear();
+  // STAR: 服务器宏，使用线程池，USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+  boost::asio::async_read(
+      m_sock, boost::asio::buffer(m_recv_head_node->getData(), HEAD_LENGTH),
+      boost::asio::bind_executor(m_strand, [this](auto &&PH1, auto &&PH2) {
+        handle_read_head(std::forward<decltype(PH1)>(PH1),
+                         std::forward<decltype(PH2)>(PH2), shared_from_this());
+      }));
+#endif // USE_STRAND_LIST
+// STAR:服务器宏，使用服务池，NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
   boost::asio::async_read(
       m_sock, boost::asio::buffer(m_recv_head_node->getData(), HEAD_LENGTH),
       [this](auto &&PH1, auto &&PH2) {
         handle_read_head(std::forward<decltype(PH1)>(PH1),
                          std::forward<decltype(PH2)>(PH2), shared_from_this());
       });
+
+#endif // NOUSE_STRAND_LIST
 }
 
 void Session::handle_write(const boost::system::error_code &error,
@@ -409,12 +559,25 @@ void Session::handle_write(const boost::system::error_code &error,
     m_send_que.pop();
     if (!m_send_que.empty()) {
       auto &msgnode = m_send_que.front();
+// STAR:服务器宏，使用线程池，USE_STRAND_LIST
+#ifdef USE_STRAND_LIST
+      boost::asio::async_write(
+          m_sock,
+          boost::asio::buffer(msgnode->getData(), msgnode->getTotallen()),
+          boost::asio::bind_executor(m_strand, [this, msgnode](auto &&PH1,
+                                                               auto &&) {
+            handle_write(std::forward<decltype(PH1)>(PH1), shared_from_this());
+          }));
+#endif // USE_STRAND_LISE
+// STAR:服务器宏，使用服务池，NOUSE_STRAND_LIST
+#ifdef NOUSE_STRAND_LIST
       boost::asio::async_write(
           m_sock,
           boost::asio::buffer(msgnode->getData(), msgnode->getTotallen()),
           [this, msgnode](auto &&PH1, auto &&) {
             handle_write(std::forward<decltype(PH1)>(PH1), shared_from_this());
           });
+#endif // NOUSE_STRAND_LISE
     }
   }
 }
